@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Claude Token Tracker</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0c0c10;
+      --surface:   #13131a;
+      --border:    #242430;
+      --text:      #d8d8e8;
+      --dim:       #505068;
+      --accent:    #4aab84;
+      --danger:    #d95f5f;
+      --warn:      #c99540;
+      --font-mono: 'Courier New', Courier, monospace;
+      --font-ui:   'Segoe UI', Tahoma, Geneva, sans-serif;
+    }
+
+    html, body {
+      width: 280px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-ui);
+      font-size: 12px;
+      user-select: none;
+    }
+
+    .shell { display: flex; flex-direction: column; }
+
+    /* ── Drift warning banner ─────────────────────────────────────────── */
+    #drift-banner {
+      display: none;   /* shown by popup.js when drift is present */
+      background: #1c1508;
+      border-bottom: 1px solid var(--warn);
+      padding: 8px 12px;
+    }
+
+    .drift-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 5px;
+    }
+
+    .drift-title {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--warn);
+    }
+
+    #drift-dismiss {
+      font-size: 9px;
+      color: var(--dim);
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+    }
+    #drift-dismiss:hover { color: var(--text); }
+
+    .drift-body {
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      color: #a08040;
+      line-height: 1.6;
+    }
+
+    .drift-field { color: var(--warn); }
+
+    .drift-note {
+      margin-top: 5px;
+      font-family: var(--font-ui);
+      font-size: 9px;
+      color: var(--dim);
+      line-height: 1.5;
+    }
+
+    /* ── Header ───────────────────────────────────────────────────────── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header-label {
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+
+    .header-model {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--dim);
+    }
+
+    /* ── Gauge area ───────────────────────────────────────────────────── */
+    .gauge-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      padding: 16px 14px 12px;
+    }
+
+    #gauge-svg { flex-shrink: 0; overflow: visible; }
+
+    .stats { display: flex; flex-direction: column; gap: 6px; }
+
+    .stat-row { display: flex; flex-direction: column; gap: 1px; }
+
+    .stat-label {
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+
+    .stat-value {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+
+    .stat-value.accent { color: var(--accent); }
+
+    /* ── Progress bar ─────────────────────────────────────────────────── */
+    .bar-wrap {
+      padding: 0 14px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .bar-track {
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.4s ease, background 0.3s ease;
+    }
+
+    .bar-legend {
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .bar-legend span {
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      color: var(--dim);
+    }
+
+    /* ── Footer ───────────────────────────────────────────────────────── */
+    .footer {
+      border-top: 1px solid var(--border);
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .updated { font-size: 9.5px; color: var(--dim); }
+
+    #btn-reset {
+      font-family: var(--font-ui);
+      font-size: 10px;
+      letter-spacing: 0.05em;
+      color: var(--dim);
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 3px 8px;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    #btn-reset:hover { color: var(--danger); border-color: var(--danger); }
+
+    /* ── Empty state ──────────────────────────────────────────────────── */
+    .empty {
+      padding: 20px 14px 22px;
+      text-align: center;
+      color: var(--dim);
+      font-size: 11px;
+      line-height: 1.7;
+    }
+
+    .empty strong {
+      display: block;
+      font-size: 12px;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+
+    <!-- ── Drift warning banner (hidden until drift detected) ── -->
+    <div id="drift-banner">
+      <div class="drift-header">
+        <span class="drift-title">⚠ Schema Drift Detected</span>
+        <button id="drift-dismiss">dismiss</button>
+      </div>
+      <div class="drift-body">
+        event: <span id="drift-event" class="drift-field">—</span><br>
+        field: <span id="drift-field" class="drift-field">—</span><br>
+        expected: <span id="drift-expected">—</span> · got: <span id="drift-received">—</span>
+      </div>
+      <div class="drift-note">
+        Values may be inaccurate. Check for an extension update.
+      </div>
+    </div>
+
+    <div class="header">
+      <span class="header-label">Context Window</span>
+      <span class="header-model" id="hdr-schema">schema v—</span>
+    </div>
+
+    <!-- ── Populated state ── -->
+    <div id="state-data" style="display:none;">
+      <div class="gauge-wrap">
+        <svg id="gauge-svg" width="88" height="88" viewBox="0 0 88 88">
+          <circle cx="44" cy="44" r="36"
+                  fill="none" stroke="#1c1c26" stroke-width="7"/>
+          <circle id="gauge-arc" cx="44" cy="44" r="36"
+                  fill="none" stroke="#4aab84" stroke-width="7"
+                  stroke-linecap="round"
+                  stroke-dasharray="0 226.2"
+                  transform="rotate(-90 44 44)"/>
+          <text id="gauge-pct" x="44" y="40"
+                text-anchor="middle" dominant-baseline="auto"
+                font-family="'Courier New', monospace"
+                font-size="18" font-weight="700"
+                fill="#d8d8e8">0%</text>
+          <text x="44" y="54"
+                text-anchor="middle" dominant-baseline="auto"
+                font-family="'Segoe UI', sans-serif"
+                font-size="8" letter-spacing="1.5"
+                fill="#505068">USED</text>
+        </svg>
+
+        <div class="stats">
+          <div class="stat-row">
+            <span class="stat-label">Input</span>
+            <span class="stat-value accent" id="stat-in">—</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Output</span>
+            <span class="stat-value" id="stat-out">—</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Total</span>
+            <span class="stat-value" id="stat-total">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="bar-wrap">
+        <div class="bar-track">
+          <div class="bar-fill" id="bar-fill"></div>
+        </div>
+        <div class="bar-legend">
+          <span id="bar-used">— tk used</span>
+          <span id="bar-free">— tk free</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Empty state ── -->
+    <div id="state-empty" class="empty">
+      <strong>No data yet</strong>
+      Send a message in claude.ai<br>and reopen this popup.
+    </div>
+
+    <div class="footer">
+      <span class="updated" id="updated-time"></span>
+      <button id="btn-reset">Reset</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
