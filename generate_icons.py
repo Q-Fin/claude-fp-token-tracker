@@ -2,6 +2,7 @@
 generate_icons.py
 Generates extension icons at 16, 32, 48, 128px.
 Design: dark square, teal ring arc (~75% fill), small centre dot.
+No need to run again, since I've already generated and pasted them in the icons/ folder.
 """
 
 import math, os
