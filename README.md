@@ -2,10 +2,9 @@
 
 > A minimal Chrome / Edge / Firefox extension that shows how much of Claude's free-plan **context window** you have used in the current conversation by measuring the context window *fill* (tokens used / 200k), not the free-plan message quota. These are different things. The token tracking is precise, but the quota is sadly opaque and there is no way to truly measure it for the free-plan as of now.
 
-
 <p align="center">
   <img src="https://img.shields.io/badge/Claude-D97757?logo=claude&logoColor=fff">
-  <img src="https://img.shields.io/badge/Version-1.2.0-orange" alt="Version">
+  <img src="https://img.shields.io/badge/Version-1.3.0-orange" alt="Version">
   <img src="https://img.shields.io/badge/Manifest-v3-orange">
   <img src="https://img.shields.io/badge/SSE%20schema-v1-orange">
   <img src="https://img.shields.io/badge/Chrome-supported-teal?logo=googlechrome&logoColor=fff">
@@ -22,7 +21,7 @@ This extension tracks **context window fill** — the fraction of the model's 20
 
 It does **not** track your **free-plan message quota** (the daily limit on how many times you can send a message).
 
-**These are two different limits.** Most tools that claim to track "Claude tokens" conflate them. This one does not.
+**These are two different limits.** Some tools that claim to track "Claude tokens" conflate them. This one does not.
 
 | What this tracks | What this does NOT track |
 |---|---|
@@ -116,7 +115,7 @@ Six files. No build step. No dependencies. No external requests.
 
 ## Browser compatibility
 
-The shim `const api = (typeof browser !== 'undefined') ? browser : chrome` is inlined in every extension-context file (`content.js`, `background.js`, `popup.js`). `injected.js` runs in the page's MAIN world and uses no extension APIs — it requires no shim.
+The shim `const api = (typeof browser !== 'undefined') ? browser : chrome` is inlined in every extension-context file (`content.js`, `background.js`, `popup.js`). `injected.js` runs in the page's MAIN world and uses no extension APIs. It requires no shim.
 
 | API used | Chrome / Edge | Firefox 128+ |
 |---|---|---|
@@ -161,7 +160,15 @@ claude-token-tracker/
 │   ├── icon32.png
 │   ├── icon48.png
 │   └── icon128.png
-└── generate_icons.py     reproducible icon generation (requires Pillow, already run)
+├── test/
+│   ├── parser.test.js    zero-dependency Node test
+│   └── fixtures/
+│       ├── completion.sse                 happy-path capture
+│       ├── completion-drift-type.sse      input_tokens sent as string
+│       └── completion-drift-missing.sse   usage block absent entirely
+├── CHANGELOG.md          full version history and schema version table
+├── generate_icons.py     reproducible icon generation (requires Pillow, already run)
+└── LICENSE
 ```
 
 ---
@@ -219,10 +226,29 @@ When you report an issue, always include the schema version shown in the popup h
 2. Load unpacked from your local clone
 3. Open `injected.js` to update validators if the SSE shape has changed
 4. Increment `SCHEMA_VERSION` if you touch the validators
-5. Update CHANGELOG section with the date and nature of the change
-6. Open a pull request — include the observed raw SSE event that prompted the fix
+5. Run the tests. They must pass before opening a pull request
+6. Update `CHANGELOG.md` with the date and nature of the change
+7. Open a pull request and include the observed raw SSE event that prompted the fix
 
 **Do not add features that are out of scope.** This extension does one thing. Proposals to add quota tracking, conversation history, analytics, or sync storage will be closed.
+
+### Running the tests
+
+No install step. Node.js is the only requirement.
+
+```bash
+node test/parser.test.js
+```
+
+The suite covers three cases against captured SSE fixtures:
+
+| Fixture | Tests |
+|---|---|
+| `completion.sse` | Correct `inputTokens`, correct `outputTokens`, no drift, fill % in range |
+| `completion-drift-type.sse` | Drift detected, correct field path, expected/received types, graceful output extraction |
+| `completion-drift-missing.sse` | Drift detected on missing `usage` block, `inputTokens` degrades to 0 |
+
+If you update the validators in `injected.js`, update their mirror in `test/parser.test.js` identically. Any divergence between the two is itself a bug.
 
 ---
 
@@ -240,40 +266,16 @@ No data ever leaves your browser. No analytics. No remote logging.
 
 ## Limitations
 
-- **SSE schema is private.** Anthropic can change it without notice. The schema guard exists precisely for this — it fails loudly, not silently.
+- **SSE schema is private.** Anthropic can change it without notice. The schema guard exists precisely for this (you'll know if there's a fail).
 - **Free-plan message quota is not tracked.** It is not exposed in the SSE stream. The DOM-scraping approach required to infer it is brittle and explicitly out of scope.
 - **Firefox requires version 128+.** This is the minimum for MV3 service workers and MAIN-world content script injection.
 - **SharedWorker requests would not be intercepted.** The `window.fetch` override covers requests made from the main frame only. Claude.ai currently does not use SharedWorkers for completions.
 
 ---
 
-## CHANGELOG
+## Changelog
 
-### v1.2.0
-- Added `icons/` — 16, 32, 48, 128 px PNGs generated from `generate_icons.py`
-- Added `"icons"` and `"action.default_icon"` blocks to manifest
-- Added `"browser_specific_settings.gecko"` to manifest (`id`, `strict_min_version: 128`)
-- Added `const api = browser ?? chrome` shim to `content.js`, `background.js`, `popup.js`
-- All `chrome.*` calls replaced with `api.*` — single codebase, three browsers
-- `injected.js` unchanged (MAIN world, no extension APIs)
-- README updated with browser badges, compatibility table, Firefox install instructions, store section
-
-### v1.1.0
-- Added `SCHEMA_VERSION = 1` constant in `injected.js`
-- Added typed validators for `message_start` and `message_delta` SSE events
-- Added `CTT_DRIFT` message type: emitted on first validation failure per stream
-- Added drift warning banner in popup with field-level diagnostic detail
-- Background now stores drift state globally in session (not per-tab)
-- Drift dismissed per-session; reappears after browser restart if still unresolved
-- Token values on partial drift still displayed, tinted amber
-- Schema version now shown in popup header
-
-### v1.0.0 (not fully publicly published)
-- Initial release
-- `window.fetch` override in MAIN world
-- SSE parser for `message_start` / `message_delta`
-- Per-tab token state in `chrome.storage.session`
-- SVG ring gauge, linear bar, toolbar badge
+See [`CHANGELOG.md`](CHANGELOG.md) for the full version history, schema version table, and instructions for reading schema drift entries.
 
 ---
 
@@ -286,7 +288,7 @@ The following is required before each store submission. Included here so it surv
 - [ ] All icons present at 16 / 32 / 48 / 128 px
 - [ ] Privacy practices declared: no user data collected, no remote transmission
 - [ ] Single-purpose description matches the one-liner in this README
-- [ ] Zip excludes `generate_icons.py`, `*.md`, `.git/`
+- [ ] Zip excludes `generate_icons.py`, `test/`, `*.md`, `.git/`
 
 ### Firefox Add-ons (AMO)
 - [ ] `browser_specific_settings.gecko.id` present in manifest
