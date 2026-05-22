@@ -1,5 +1,15 @@
 # Claude Token Tracker
 
+<br/>
+<br/>
+<details>
+<summary>This project is still incomplete. Please read this note at your convenience.</summary>
+<br/>
+Over the past few days, more than 300 clones of this repo have been made, even though no platform has yet recognized the extension.
+</details>
+<br/>
+<br/>
+
 > A minimal Chrome / Edge / Firefox extension that shows how much of Claude's free-plan **context window** you have used in the current conversation by measuring the context window *fill* (tokens used / 200k), not the free-plan message quota. These are different things. The token tracking is precise, but the quota is sadly opaque and there is no way to truly measure it for the free-plan as of now.
 
 <p align="center">
